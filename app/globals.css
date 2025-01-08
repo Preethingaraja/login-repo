@@ -1,0 +1,10 @@
+/* globals.css */
+body {
+  background-color: white !important; /* Set background to black */
+  color: white !important; /* Set default text color to white */
+}
+
+/* Optional: Customize Bootstrap components */
+.container {
+  background-color: transparent !important;
+}

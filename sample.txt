@@ -1,0 +1,544 @@
+"use client";
+import React, { useState, useEffect } from "react";
+import { Button, Form, Container, Row, Col } from "react-bootstrap";
+import Image from "next/image";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { initializeApp } from "firebase/app";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
+import "../styles/LoginModal.css";
+import axios from 'axios'; // Add axios for sending HTTP requests
+
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const LoginPage = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [greeting, setGreeting] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [loginStatus, setLoginStatus] = useState("arrow");
+
+  const getGreeting = () => {
+    const currentHour = new Date().getHours();
+
+    if (currentHour >= 5 && currentHour < 12) {
+      return "Good Morning! Ready to Transform AI and Seize the Day?";
+    } else if (currentHour >= 12 && currentHour < 18) {
+      return "Good Afternoon! Your AI Journey is Just Getting Started.";
+    } else if (currentHour >= 18 && currentHour < 22) {
+      return "Good Evening! Let’s Innovate and Unwind with AI.";
+    } else {
+      return "Good Night! Dream Big, AI is the Future.";
+    }
+  };
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+
+    // Check if user is already logged in with Google
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsLoggedIn(false); // Return to login page after success message
+        setUserName(user.displayName || "User");
+        setIsGoogleUser(true);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const validateCredentials = async () => {
+      if (!password) {
+        setLoginStatus("arrow"); // Reset to arrow if the password is empty
+        return;
+      }
+
+      if (password.length >= 8) { // Trigger validation only for passwords with 8 or more characters
+        const students = collection(db, "students");
+        const q = query(
+          students,
+          where("Email", "==", email),
+          where("Password", "==", password)
+        );
+
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          setLoginStatus("tick");
+          querySnapshot.forEach((doc) => {
+            setUserName(doc.data().Name); // Fetch and set the user's name
+          });
+        } else {
+          setLoginStatus("wrong");
+        }
+      } else {
+        setLoginStatus("arrow"); // Show arrow if password is less than 8 characters
+      }
+    };
+
+    validateCredentials();
+  }, [email, password]);
+
+  useEffect(() => {
+    if (loginStatus === "tick") {
+      // Delay to show the tickmark before displaying the dashboard
+      const timer = setTimeout(() => {
+        setIsLoggedIn(true);
+      }, 1000); // 1-second delay
+
+      return () => clearTimeout(timer); // Cleanup timer on component unmount
+    }
+  }, [loginStatus]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(""); // Clear previous errors
+
+    if (loginStatus === "tick") {
+      setTimeout(() => {
+        setIsLoggedIn(true);
+      }, 1000); // 1-second delay
+    } else if (loginStatus === "wrong") {
+      setError("Invalid email or password. Please try again.");
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Generate a random password
+      const generatedPassword = Math.random().toString(36).slice(-8);
+
+      // Send email with the user's Google email and the generated password
+      const response = await axios.post('/api/send-email', {
+        email: user.email,
+        password: generatedPassword,
+      });
+
+      if (response.status === 200) {
+        setSuccess(
+          "Dear Innovator, Your personalized AI-powered dashboard is now ready! Please check your email for login credentials."
+        );
+        setUserName(user.displayName || "User");
+        setIsGoogleUser(true);
+
+        // Show the success message and redirect after 5 seconds
+        setTimeout(() => {
+          setIsLoggedIn(false);
+        }, 5000);
+      } else {
+        setError("Failed to send email. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error in Google login or email sending:", err);
+      setError("Google login failed. Please try again.");
+    }
+  };
+
+  return (
+    <Container fluid className="login-container" style={{ color: '#000000' }}>
+      <Row className="justify-content-center align-items-center min-vh-100">
+        <Col xs={12} sm={10} md={6} lg={5} xl={4} className="login-form-container">
+          <div className="logo-container">
+            <Image
+              src="/assets/genai.png"
+              alt="Company Logo"
+              className="company-logo"
+              width={150}
+              height={150}
+              priority
+            />
+          </div>
+
+          {!isLoggedIn ? (
+            <>
+              <div className="welcome-message">
+                <h1>{greeting}</h1>
+              </div>
+
+              <p className="text-center" style={{ color: '#000000' }}>Already have an account? Login below</p>
+
+              {error && <p className="text-danger text-center" style={{ color: '#000000' }}>{error}</p>}
+              {success && <p className="text-success text-center" style={{ color: '#000000' }}>{success}</p>}
+
+              <Form>
+                <Form.Group controlId="formEmail">
+                  <Form.Control
+                    type="email"
+                    placeholder="Enter email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </Form.Group>
+                <Form.Group controlId="formPassword">
+                  <Form.Control
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </Form.Group>
+
+               {/* Dynamic PNG for Login */}
+               <div
+  className={`login-image-container ${
+    loginStatus === "wrong"
+      ? "animate-pulse"
+      : loginStatus === "tick"
+      ? "animate-spin"
+      : "animate-bounce"
+  }`}
+  style={{ textAlign: "center", marginTop: "20px", cursor: "pointer" }}
+  onClick={handleSubmit}
+>
+  <Image
+    src={
+      loginStatus === "tick"
+        ? "/assets/tickmark.png"
+        : loginStatus === "wrong"
+        ? "/assets/wrongmark.png"
+        : "/assets/arrow.png"
+    }
+    alt="Login Status"
+    width={50}
+    height={50}
+    className="login-icon"
+    style={{ maxWidth: "100%", height: "auto" }}
+  />
+</div>
+
+              </Form>
+              {!isGoogleUser && (
+                <>
+                  <div className="or-text text-center" style={{ color: '#000000' }}>
+                    <p>OR</p>
+                  </div>
+
+                  <Button variant="danger" className="btn-google" onClick={handleGoogleLogin}>
+                    <Image
+                      src="/assets/google.png"
+                      alt="Google Icon"
+                      width={50}
+                      height={50}
+                      className="google-icon"
+                    />
+                    <span className="google-text">Sign Up with Google</span>
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="dashboard-container" style={{ color: '#000000' }}>
+              <h2>Welcome {userName}!</h2>
+              <p>Your AI-powered dashboard is ready to use.</p>
+            </div>
+          )}
+        </Col>
+      </Row>
+    </Container>
+  );
+};
+
+export default LoginPage;
+
+
+
+/* Import Garet Font */
+@import url('https://fonts.googleapis.com/css2?family=Garet:wght@400;600;800&display=swap');
+
+.login-container {
+  display: flex;
+  align-items: center; /* Center vertically */
+  justify-content: center; /* Center horizontally */
+  min-height: 100vh; /* Ensure full height on all screen sizes */
+  padding: 20px; /* Add some padding for smaller screens */
+  font-family: 'Garet', sans-serif; /* Apply Garet font */
+  box-sizing: border-box; /* Include padding in the total height and width */
+  margin-top:20px;
+}
+.login-form-container {
+  background: snow; /* Clean and modern background color */
+  padding: 20px; /* Adjust padding for responsiveness */
+  border-radius: 10px; /* Smooth rounded corners */
+  text-align: center; /* Center text within the container */
+  color: black; /* Ensure text is readable */
+  max-width: 90%; /* Make the form container flexible for smaller screens */
+  width: 100%; /* Let the container use the available space */
+  max-width: 400px; /* Constrain the width for larger screens */
+  box-shadow: 0px 4px 10px rgba(101, 102, 102, 0.932); /* Grey shadow */
+  border: 1px solid rgb(183, 183, 184); /* Subtle grey border */
+}
+
+
+
+.welcome-message h1 {
+  color: rgb(0, 0, 0);
+  margin-bottom: 10px; /* Reduced margin */
+  font-size: 1.8rem;
+  font-family: 'Garet', sans-serif; /* Use Garet font for heading */
+}
+
+/* Input Fields */
+input[type="email"], input[type="password"], input[type="text"], input[type="date"] {
+  border-radius: 8px;
+  border: 2px solid #fff;
+  padding: 10px; /* Reduced padding */
+  font-size: 1rem;
+  margin-bottom: 12px; /* Reduced margin */
+  width: 60%;
+  background: snow; /* Grey gradient */
+  color: #333; /* Dark grey text for better readability */
+  font-family: 'Garet', sans-serif; /* Apply Garet font */
+  transition: all 0.3s ease;
+}
+
+/* Input hover effect */
+input[type="email"]:hover, input[type="password"]:hover, input[type="text"]:hover, input[type="date"]:hover {
+  background: snow; /* Grey gradient */
+  border-color: #191320;
+}
+/* Neon Gradient Blue Button Styles */
+.btn-login {
+  width: auto; /* Adjust button width based on text length */
+  background: linear-gradient(90deg, #00c6ff, #0072ff); /* Gradient neon blue */
+  border: none;
+  padding: 12px 16px; /* Reduced padding */
+  font-size: 1.2rem;
+  color: #fff;
+  border-radius: 8px;
+  font-family: 'Garet', sans-serif; /* Apply Garet font */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 5px #00c6ff, 0 0 10px #0072ff, 0 0 15px #0072ff; /* Neon blue glow */
+}
+
+/* Button hover effect */
+.btn-login:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px #00e5ff, 0 0 15px #00b4ff, 0 0 20px #00b4ff; /* Enhanced neon glow */
+}
+
+
+/* Logo container */
+.logo-container {
+  text-align: center;
+  margin-bottom: -10px; /* Reduced margin */
+  border-radius: 50%;
+}
+
+/* Logo image */
+.company-logo {
+  max-width: 130px;
+  height: auto;
+  border-radius: 50%;
+  margin-top: -20%; /* Reduced top margin */
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border-radius: 5px;
+  border: none;
+  padding: 10px 18px; /* Added horizontal padding for consistency */
+  font-size: 16px;
+  color: rgb(0, 0, 0);
+  cursor: pointer;
+  height: 50px;
+  white-space: nowrap; /* Prevents text from wrapping */
+  margin: 0 auto; /* Center horizontally */
+}
+
+.btn-google:hover {
+  background-color: transparent;
+}
+
+.google-icon {
+  margin-right: 10px; /* Adjust margin for better spacing */
+}
+
+.google-text {
+  font-weight: bold;
+  font-size: 20px;
+}
+
+/* Password input group */
+.form-group {
+  position: relative;
+}
+
+.form-control {
+  padding-right: 2.5rem; /* Extra space for the eye icon */
+}
+
+.eye-icon {
+  position: absolute;
+  top: 50%;
+  right: 10%; /* Adjust as needed for responsiveness */
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #333;
+  font-size: 1.2rem;
+  transition: color 0.3s;
+}
+
+.eye-icon:hover {
+  color: #0072ff; /* Add hover effect */
+}
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 1s infinite;
+}
+
+
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+
+.animate-spin {
+  animation: spin 1s ease-in-out infinite;
+}
+
+
+
+
+
+import nodemailer from 'nodemailer';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc } from 'firebase/firestore';
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+};
+
+// Initialize Firebase and Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  const { email, password } = req.body;
+
+  console.log('Email User:', process.env.EMAIL_USER);
+  console.log('Email Pass:', process.env.EMAIL_PASS);
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  let transporter;
+
+  try {
+    transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.verify();
+    console.log('Transporter is ready');
+  } catch (error) {
+    console.error('Error creating transporter:', error);
+    return res.status(500).json({ error: 'Failed to configure email service.' });
+  }
+
+  try {
+    // Define email content
+    const mailOptions = {
+      from: `"Neural GenAI Networks" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Welcome to Your AI-Powered Dashboard - Login Credentials Inside',
+      text: `Dear Innovator,\n\nWelcome to Neural GenAI Networks, your gateway to a personalized AI-powered learning experience! We're thrilled to have you on board.\n\nHere are your login details:\n\n🔑 Email ID: ${email}\n🔑 Password: ${password}\n\nUnlock your dashboard today! If you encounter any issues, reach us at genaitechnical@gmail.com.\n\nWarm regards,\nThe Neural GenAI Team`,
+    };
+
+    // Send email
+    await transporter.sendMail(mailOptions);
+
+    // Save student data to Firestore
+const studentsCollection = collection(db, 'students');
+
+// Extract name from the email and remove numerical values
+const name = email.split('@')[0]
+  .replace(/[\W_0-9]+/g, ' ') // Replace non-word characters and numbers with a space
+  .replace(/\b\w/g, char => char.toUpperCase()) // Capitalize the first letter of each word
+  .trim(); // Remove any extra spaces
+
+await addDoc(studentsCollection, {
+  Email: email,
+  Password: password,
+  Name: name, // Use the cleaned and formatted name
+});
+
+
+    console.log('Student data saved to Firestore');
+    return res.status(200).json({ message: 'Email sent and student data saved successfully!' });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({ error: 'Failed to process request. Please try again later.' });
+  }
+}
