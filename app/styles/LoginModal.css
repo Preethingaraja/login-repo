@@ -1,29 +1,27 @@
 /* Import Garet Font */
 @import url('https://fonts.googleapis.com/css2?family=Garet:wght@400;600;800&display=swap');
 
+
 .login-container {
+  position: relative;
+  height: 100vh;
   display: flex;
-  align-items: center; /* Center vertically */
+  align-items: center;
   justify-content: center; /* Center horizontally */
-  min-height: 100vh; /* Ensure full height on all screen sizes */
-  padding: 20px; /* Add some padding for smaller screens */
+  padding: 0 10px;
   font-family: 'Garet', sans-serif; /* Apply Garet font */
-  box-sizing: border-box; /* Include padding in the total height and width */
   margin-top:20px;
 }
 .login-form-container {
-  background: snow; /* Clean and modern background color */
-  padding: 20px; /* Adjust padding for responsiveness */
-  border-radius: 10px; /* Smooth rounded corners */
-  text-align: center; /* Center text within the container */
-  color: black; /* Ensure text is readable */
-  max-width: 90%; /* Make the form container flexible for smaller screens */
-  width: 100%; /* Let the container use the available space */
-  max-width: 400px; /* Constrain the width for larger screens */
+  background: snow; /* Gradient with transparency */
+  padding: 30px; /* Reduced padding */
+  border-radius: 10px;
+  text-align: center;
+  color: white;
+  max-width: 400px;
   box-shadow: 0px 4px 10px rgba(101, 102, 102, 0.932); /* Grey shadow */
-  border: 1px solid rgb(183, 183, 184); /* Subtle grey border */
+  border: 1px solid rgb(183, 183, 184); /* Grey border */
 }
-
 
 
 .welcome-message h1 {
